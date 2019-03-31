@@ -12,6 +12,9 @@ import mime from 'mime-types';
 const dir = path.join(__dirname, '..', config.directory);
 const multipartMiddleware = multipart();
 const fs = Bb.promisifyAll(require('fs'));
+if (!fs.existsSync(dir)) {
+  fs.mkdirSync(dir);
+}
 
 const app = express();
 app.use(cors());
