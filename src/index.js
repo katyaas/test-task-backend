@@ -4,14 +4,15 @@ import express from 'express';
 import Bb from 'bluebird';
 import path from 'path';
 import cors from 'cors';
-import config from './config';
 import multipart from 'connect-multiparty';
 import bodyParser from 'body-parser';
 import mime from 'mime-types';
 
+import config from './config';
+
 const dir = path.join(__dirname, '..', config.directory);
-const multipartMiddleware = multipart();
 const fs = Bb.promisifyAll(require('fs'));
+
 if (!fs.existsSync(dir)) {
   fs.mkdirSync(dir);
 }
@@ -19,6 +20,7 @@ if (!fs.existsSync(dir)) {
 const app = express();
 app.use(cors());
 const jsonParser = bodyParser.json();
+const multipartMiddleware = multipart();
 
 function readFileStats(files) {
   return Promise.all(
@@ -29,10 +31,8 @@ function readFileStats(files) {
     })
   );
 }
-app.use('/static', express.static(dir));
 
 app.get('/files', async (req, res) => {
-
   let files = await fs.readdirAsync(dir, { withFileTypes: true });
   files = files.filter(file => file.isFile());
   const fileStats = await readFileStats(files);
@@ -44,9 +44,7 @@ app.get('/files', async (req, res) => {
 app.get('/files/:fileName', async (req, res) => {
   try {
     const filePath = path.join(dir, req.params.fileName);
-    console.log(filePath);
     const fileMime = mime.lookup(filePath);
-    console.log(fileMime);
     const fileStats = await readFileStats([req.params.fileName]);
     if (fileMime.startsWith('text/') || fileMime.startsWith('image/')) {
       res.writeHead(200, {
@@ -83,8 +81,6 @@ app.post('/files', multipartMiddleware, async (req, res) => {
 });
 
 app.delete('/files', jsonParser, async (req, res) => {
-  console.log(req.body);
-  console.log(req);
   if (!req.body.fileName) {
     res.status(400).send({
       error: 'No files to remove',
@@ -96,13 +92,6 @@ app.delete('/files', jsonParser, async (req, res) => {
   });
 });
 
-app.use(function(err, req, res, next) {
-  console.error(err.stack);
-  res.status(500).send('Something broke!');
-});
-
-const PORT = 5000;
-
 app.listen(config.port, () => {
-  console.log(`server running on port ${PORT}`)
+  console.log(`server running on port ${config.port}`)
 });
