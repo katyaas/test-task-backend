@@ -20,7 +20,7 @@ const jsonParser = bodyParser.json();
 function readFileStats(files) {
   return Promise.all(
     files.map(async (file) => {
-      const filePath = path.join(dir, file.name);
+      const filePath = path.join(dir, file.name || file);
       const stats = await fs.statAsync(filePath);
       return { fileName: file.name, size: stats.size, updatedAt: stats.mtime, mime: mime.lookup(filePath) }
     })
@@ -39,27 +39,28 @@ app.get('/files', async (req, res) => {
 });
 
 app.get('/files/:fileName', async (req, res) => {
-  const filePath = path.join(dir, req.params.fileName);
-  console.log(filePath);
-  const fileMime = mime.lookup(filePath);
-  console.log(fileMime);
-  if (fileMime.startsWith('text/')) {
-    res.status(500).send({
-      todo: true,
-    });
-  } else if (fileMime.startsWith('image/')) {
-    res.writeHead(200, {
-      'Content-Type': fileMime,
-      'Content-Length': fileMime,
-      'Transfer-Encoding': 'chunked'
-    });
-    const file = fs.createReadStream(filePath);
-    file.pipe(res);
-    res.end();
-  } else {
-    res.status(400).send({
-      error: `Mime type ${mime} not supported`,
-    });
+  try {
+    const filePath = path.join(dir, req.params.fileName);
+    console.log(filePath);
+    const fileMime = mime.lookup(filePath);
+    console.log(fileMime);
+    const fileStats = await readFileStats([req.params.fileName]);
+    if (fileMime.startsWith('text/') || fileMime.startsWith('image/')) {
+      res.writeHead(200, {
+        'Content-Type': fileMime,
+        'Content-Length': fileStats[0].size,
+        'Transfer-Encoding': 'chunked'
+      });
+      const file = fs.createReadStream(filePath);
+      file.pipe(res);
+    } else {
+      res.status(400).send({
+        error: `Mime type ${fileMime} not supported`,
+      });
+    }
+  } catch(err) {
+    console.error(err.stack);
+    res.status(500).send('Something broke!');
   }
 });
 
@@ -92,6 +93,10 @@ app.delete('/files', jsonParser, async (req, res) => {
   });
 });
 
+app.use(function(err, req, res, next) {
+  console.error(err.stack);
+  res.status(500).send('Something broke!');
+});
 
 const PORT = 5000;
 
